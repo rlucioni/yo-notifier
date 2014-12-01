@@ -5,8 +5,9 @@ import requests
 import os
 import json
 
-API_TOKEN = '9f1270af-67a9-4574-99db-1c58503ea165'
-USERNAME = "rlucioni"
+
+BASE_URL = 'http://www.infosniper.net/index.php?ip_address='
+
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -15,11 +16,17 @@ app = Flask(__name__)
 def handle_hook():
     data = request.get_json()
     if data['event'] == 'resume.viewed':
-        # Send a Yo from API_TOKEN account to USERNAME
-        requests.post('https://api.justyo.co/yo/', data={'api_token': API_TOKEN, "username": USERNAME})
+        link = BASE_URL + data['context']['ip']
+        # Send a Yo from YO_API_TOKEN account to USERNAME
+        requests.post('https://api.justyo.co/yo/', data={
+            'api_token': str(os.environ.get('YO_API_TOKEN')),
+            'username': str(os.environ.get('TARGET_USERNAME')),
+            'link': link
+        })
         return "Yo sent!"
     else:
         return "Nothing to do."
+
 
 # Run the app
 if __name__ == '__main__':
