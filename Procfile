@@ -1,1 +1,1 @@
-web: python resume-yo.py
+web: python yo-notifier.py
