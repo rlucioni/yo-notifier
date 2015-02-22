@@ -1,11 +1,9 @@
 import os
-import json
+import re
 from functools import partial
 
-# We need to import request to access the details of the POST request
-from flask import Flask, request
-# We need to import requests to make the call to the Yo API
 import requests
+from flask import Flask, request
 from bs4 import BeautifulSoup as bs
 
 
@@ -51,17 +49,36 @@ def send_yo(api_token, username, link=None, location=None):
 
 
 def parse_coordinates(infosniper_link):
-    """TODO: Parse the page to extract coordinates and return a string 'latitude;longitude'."""
-    return infosniper_link
+    """Parse the page to extract coordinates and return a string 'latitude;longitude'.
+
+    If unable to parse both required coordinates, return the provided link, unchanged.
+    """
+    response = requests.get(infosniper_link)
+    soup = bs(response.content)
+    
+    # Find the two table cells containing coordinates
+    cells = soup.find_all(class_='content-td2', text=re.compile('-*\d+\.\d+'), limit=2)
+
+    if len(cells) == 2:
+        # Construct the location string expected by the Yo API
+        coordinate_string = '{latitude};{longitude}'.format(latitude=cells[0].string, longitude=cells[1].string)
+        return {'type': 'coordinates', 'content': coordinate_string}
+    else:
+        # Fall back to the raw link
+        return {'type': 'link', 'content': infosniper_link}
 
 
 @app.route('/notify', methods=['POST'])
-def handle_hook():
+def notify():
     data = request.get_json()
     event_name = data['event']
     infosniper_link = INFOSNIPER_BASE_URL + data['context']['ip']
 
-    yo_from = partial(send_yo, username=str(os.environ.get('TARGET_USERNAME')), link=parse_coordinates(infosniper_link))
+    parsed = parse_coordinates(infosniper_link)
+    if parsed['type'] == 'coordinates':
+        yo_from = partial(send_yo, username=str(os.environ.get('TARGET_USERNAME')), location=parsed['content'])
+    else:
+        yo_from = partial(send_yo, username=str(os.environ.get('TARGET_USERNAME')), link=parsed['content'])
 
     if str(os.environ.get('SEND_NOTIFICATIONS')) == 'True':
         if event_name == 'profile.viewed':
